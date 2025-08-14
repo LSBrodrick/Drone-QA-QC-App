@@ -1,6 +1,6 @@
 # Drone QA/QC Analysis Application
 
-A professional offline Shiny application for analyzing multispectral drone data quality.
+A LandScan offline Shiny application for analyzing multispectral drone data quality.
 
 ## Features
 
@@ -23,4 +23,5 @@ install.packages(c(
   "dplyr", "ggplot2", "tidyr", "zoo",
   "viridis", "RColorBrewer", "scales",
   "exifr", "htmlwidgets", "rmarkdown", "tinytex"
+
 ))
