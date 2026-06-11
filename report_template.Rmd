@@ -1,0 +1,205 @@
+---
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: false
+geometry: "margin=0.6in"
+fontsize: 10pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{array}
+  - \usepackage{tabu}
+  - \usepackage{colortbl}
+  - \usepackage{xcolor}
+  - \definecolor{passgreen}{HTML}{27AE60}
+  - \definecolor{failred}{HTML}{E74C3C}
+  - \definecolor{revieworange}{HTML}{F39C12}
+  - \definecolor{headergreen}{HTML}{2D5F3F}
+  - \definecolor{lightgray}{HTML}{F5F5F5}
+  - \pagestyle{empty}
+params:
+  report_data: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+rd <- params$report_data
+```
+
+\begin{center}
+{\color{headergreen}\rule{\textwidth}{2pt}}
+\vspace{4pt}
+{\LARGE\bfseries\color{headergreen} LandScan --- Drone QA/QC Flight Report}
+\vspace{2pt}
+{\color{headergreen}\rule{\textwidth}{2pt}}
+\end{center}
+
+\vspace{-4pt}
+
+\begin{flushright}
+\small\textit{Generated: `r rd$report_generated`}
+\end{flushright}
+
+\vspace{-8pt}
+
+## Mission Information
+
+```{r mission-info}
+mission_info <- data.frame(
+  Field = c("Ranch", "Block(s) Flown", "Operator",
+            "Flight Date", "Flight Time", "Wind Speed"),
+  Value = c(rd$ranch, rd$blocks, rd$operator_name,
+            rd$flight_date, rd$flight_time, rd$wind_speed),
+  stringsAsFactors = FALSE
+)
+knitr::kable(mission_info, col.names = NULL, format = "latex",
+             booktabs = TRUE, linesep = "") |>
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = TRUE) |>
+  kableExtra::column_spec(1, bold = TRUE, width = "2.2in")
+```
+
+## Flight Summary
+
+```{r flight-summary}
+solar_val <- if (!is.null(rd$solar_elevation)) rd$solar_elevation else "N/A"
+flight_info <- data.frame(
+  Field = c("Duration", "Total Images", "Bands Used", "Camera Rig / Model",
+            "AGL", "Avg Ground Speed", "Solar Elevation", "Shutter Count", "Source Folder"),
+  Value = c(rd$flight_duration, as.character(rd$total_images), rd$bands_used,
+            rd$camera_rig, rd$agl, rd$speed, solar_val, rd$shutter_count, rd$source_files),
+  stringsAsFactors = FALSE
+)
+knitr::kable(flight_info, col.names = NULL, format = "latex",
+             booktabs = TRUE, linesep = "") |>
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = TRUE) |>
+  kableExtra::column_spec(1, bold = TRUE, width = "2.2in")
+```
+
+## MS Exposure Settings
+
+```{r exposure-settings}
+knitr::kable(rd$exposure_summary, format = "latex", booktabs = TRUE, linesep = "",
+             col.names = c("Band", "Shutter", "ISO", "F-Stop"),
+             align = c("l", "c", "c", "c")) |>
+  kableExtra::kable_styling(latex_options = c("hold_position", "striped"), full_width = FALSE)
+```
+
+## Quality Assessment
+
+```{r quality-assessment}
+# Basic radiometric checks. GPS is informational only — imagery is
+# georeferenced downstream, so GPS jitter does not gate the verdict.
+qa_df <- data.frame(
+  Check = c("Lighting Consistency", "Exposure Consistency", "GPS (informational)", "Sun Sensor Stability"),
+  Status = c(
+    ifelse(rd$qa_results$lighting$pass, "PASS", "REVIEW"),
+    ifelse(rd$qa_results$exposure$pass, "PASS", "FAIL"),
+    "INFO",
+    ifelse(rd$qa_results$sunsensor$pass, "PASS", "REVIEW")
+  ),
+  Detail = c(
+    rd$qa_results$lighting$detail,
+    rd$qa_results$exposure$detail,
+    rd$qa_results$gps$detail,
+    rd$qa_results$sunsensor$detail
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Append advanced diagnostics if available
+if (!is.null(rd$advanced_qa)) {
+  adv <- rd$advanced_qa
+  adv_df <- data.frame(
+    Check = c("Altitude Stability", "Gimbal (Nadir)", "Capture Regularity",
+              "Band Ratio Consistency", "Outlier Rate (MAD)", "Spatial Coverage"),
+    Status = c(
+      ifelse(adv$altitude$pass, "PASS", "FAIL"),
+      ifelse(adv$gimbal$pass, "PASS", "FAIL"),
+      ifelse(adv$capture_interval$pass, "PASS", "FAIL"),
+      ifelse(adv$band_ratios$pass, "PASS", "REVIEW"),
+      ifelse(adv$outliers$pass, "PASS", "FAIL"),
+      ifelse(adv$coverage$pass, "PASS", "REVIEW")
+    ),
+    Detail = c(
+      adv$altitude$detail,
+      adv$gimbal$detail,
+      adv$capture_interval$detail,
+      adv$band_ratios$detail,
+      adv$outliers$detail,
+      adv$coverage$detail
+    ),
+    stringsAsFactors = FALSE
+  )
+  qa_df <- rbind(qa_df, adv_df)
+}
+
+knitr::kable(qa_df, format = "latex", booktabs = TRUE, linesep = "",
+             col.names = c("Check", "Status", "Detail"),
+             align = c("l", "c", "l")) |>
+  kableExtra::kable_styling(latex_options = "hold_position", full_width = TRUE) |>
+  kableExtra::column_spec(1, bold = TRUE)
+```
+
+## Band Stability Scores
+
+```{r band-stability}
+knitr::kable(rd$band_stability, format = "latex", booktabs = TRUE, linesep = "",
+             col.names = c("Band", "Score", "Status"),
+             align = c("l", "c", "c")) |>
+  kableExtra::kable_styling(latex_options = c("hold_position", "striped"), full_width = FALSE)
+```
+
+```{r lighting-summary, results='asis'}
+if (!is.null(rd$lighting_summary)) {
+  cat("\n\n## Lighting Consistency by Band\n\n")
+  cat("\\small Irradiance detrended by solar elevation; cloud events detected via rolling-median MAD z-score.\n\n")
+  print(
+    knitr::kable(rd$lighting_summary, format = "latex", booktabs = TRUE, linesep = "",
+                 col.names = c("Band", "Classification", "Detrended CV", "Cloud Events", "Score"),
+                 align = c("l", "l", "c", "c", "c")) |>
+      kableExtra::kable_styling(latex_options = c("hold_position", "striped"), full_width = FALSE)
+  )
+}
+```
+
+```{r outlier-table, results='asis'}
+if (!is.null(rd$advanced_qa) && !is.null(rd$advanced_qa$outliers$per_band)) {
+  cat("\n\n## Outlier Detection (Modified Z-Score)\n\n")
+  cat("\\small Method: MAD-based Modified Z-Score (Iglewicz \\& Hoaglin, 1993). Threshold: $|Z| > 3.5$\n\n")
+  print(
+    knitr::kable(rd$advanced_qa$outliers$per_band, format = "latex", booktabs = TRUE, linesep = "",
+                 col.names = c("Band", "Total", "Outliers", "\\% Outliers"),
+                 align = c("l", "r", "r", "r")) |>
+      kableExtra::kable_styling(latex_options = c("hold_position", "striped"), full_width = FALSE)
+  )
+}
+```
+
+\vspace{8pt}
+
+```{r overall-verdict, results='asis'}
+if (rd$overall_pass) {
+  cat("\\begin{center}")
+  cat("\\colorbox{passgreen!15}{\\parbox{0.9\\textwidth}{")
+  cat("\\centering\\large\\bfseries\\color{passgreen} OVERALL: PASS")
+  cat("\\\\\\normalsize\\normalfont All quality checks within acceptable limits.")
+  cat("}}")
+  cat("\\end{center}")
+} else {
+  cat("\\begin{center}")
+  cat("\\colorbox{revieworange!15}{\\parbox{0.9\\textwidth}{")
+  cat("\\centering\\large\\bfseries\\color{revieworange} OVERALL: REVIEW NEEDED")
+  if (length(rd$issues) > 0) {
+    cat("\\\\\\normalsize\\normalfont ", paste(rd$issues, collapse = "; "))
+  }
+  cat("}}")
+  cat("\\end{center}")
+}
+```
+
+```{r operator-notes, results='asis'}
+if (nchar(trimws(rd$notes)) > 0) {
+  cat("\n\n## Operator Notes\n\n")
+  cat(rd$notes)
+}
+```

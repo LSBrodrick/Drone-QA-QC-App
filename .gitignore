@@ -1,0 +1,4 @@
+build/output/
+.Rhistory
+.RData
+.Rproj.user/

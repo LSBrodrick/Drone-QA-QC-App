@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell.exe -Command \":*)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" \"C:/Users/15039/Landscan/shiny_app/launch_app.R\")",
+      "Bash(grep:*)",
+      "Bash(cp:*)"
+    ]
+  }
+}
