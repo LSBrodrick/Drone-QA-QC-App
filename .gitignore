@@ -1,4 +1,6 @@
 build/output/
+build/*.exe
+build/*.zip
 .Rhistory
 .RData
 .Rproj.user/
